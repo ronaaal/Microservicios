@@ -1,0 +1,619 @@
+openapi: 3.0.3
+info:
+  title: API Gateway
+  description: |
+    API Gateway que actúa como punto de entrada único para todos los microservicios.
+    Este Gateway orquesta las peticiones a los servicios de Authors y Books,
+    proporcionando validaciones entre servicios y un punto de acceso centralizado.
+    
+    **Características principales:**
+    - Punto de entrada único para todos los clientes
+    - Validación de relaciones entre servicios (ej: verifica que un autor exista antes de crear un libro)
+    - Proxificación de peticiones a los microservicios
+    - Respuestas estandarizadas
+  version: 1.0.0
+  contact:
+    name: Gateway Service
+    url: http://localhost:8000
+servers:
+  - url: http://localhost:8000
+    description: Servidor del Gateway (recomendado)
+
+tags:
+  - name: Authors
+    description: Operaciones relacionadas con autores (proxificadas al servicio de Authors)
+  - name: Books
+    description: Operaciones relacionadas con libros (proxificadas al servicio de Books)
+
+paths:
+  /authors:
+    get:
+      tags:
+        - Authors
+      summary: Listar todos los autores
+      description: Retorna una lista de todos los autores disponibles (proxificado al servicio de Authors)
+      operationId: listAuthors
+      responses:
+        '200':
+          description: Lista de autores obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Author'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags:
+        - Authors
+      summary: Crear un nuevo autor
+      description: Crea un nuevo autor en el sistema (proxificado al servicio de Authors)
+      operationId: createAuthor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorInput'
+      responses:
+        '201':
+          description: Autor creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Author'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /authors/{id}:
+    get:
+      tags:
+        - Authors
+      summary: Obtener un autor específico
+      description: Retorna la información de un autor por su ID (proxificado al servicio de Authors)
+      operationId: getAuthor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del autor
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Autor encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Author'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    put:
+      tags:
+        - Authors
+      summary: Actualizar un autor (completo)
+      description: Actualiza todos los campos de un autor existente (proxificado al servicio de Authors)
+      operationId: updateAuthor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del autor
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorInput'
+      responses:
+        '200':
+          description: Autor actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Author'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    patch:
+      tags:
+        - Authors
+      summary: Actualizar un autor (parcial)
+      description: Actualiza parcialmente los campos de un autor existente (proxificado al servicio de Authors)
+      operationId: patchAuthor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del autor
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorInputPartial'
+      responses:
+        '200':
+          description: Autor actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Author'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags:
+        - Authors
+      summary: Eliminar un autor
+      description: Elimina un autor del sistema (proxificado al servicio de Authors)
+      operationId: deleteAuthor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del autor
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Autor eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Author'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /books:
+    get:
+      tags:
+        - Books
+      summary: Listar todos los libros
+      description: Retorna una lista de todos los libros disponibles (proxificado al servicio de Books)
+      operationId: listBooks
+      responses:
+        '200':
+          description: Lista de libros obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Book'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags:
+        - Books
+      summary: Crear un nuevo libro
+      description: |
+        Crea un nuevo libro en el sistema (proxificado al servicio de Books).
+        **Validación automática**: El Gateway valida que el `author_id` exista antes de crear el libro.
+      operationId: createBook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookInput'
+      responses:
+        '201':
+          description: Libro creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          description: Autor no encontrado (validación del Gateway)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "The book does not exist"
+                code: 404
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /books/{id}:
+    get:
+      tags:
+        - Books
+      summary: Obtener un libro específico
+      description: Retorna la información de un libro por su ID (proxificado al servicio de Books)
+      operationId: getBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del libro
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Libro encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    put:
+      tags:
+        - Books
+      summary: Actualizar un libro (completo)
+      description: |
+        Actualiza todos los campos de un libro existente (proxificado al servicio de Books).
+        **Validación automática**: Si se proporciona `author_id`, el Gateway valida que el autor exista.
+      operationId: updateBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del libro
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookInput'
+      responses:
+        '200':
+          description: Libro actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    patch:
+      tags:
+        - Books
+      summary: Actualizar un libro (parcial)
+      description: |
+        Actualiza parcialmente los campos de un libro existente (proxificado al servicio de Books).
+        **Validación automática**: Si se proporciona `author_id`, el Gateway valida que el autor exista.
+      operationId: patchBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del libro
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookInputPartial'
+      responses:
+        '200':
+          description: Libro actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags:
+        - Books
+      summary: Eliminar un libro
+      description: Elimina un libro del sistema (proxificado al servicio de Books)
+      operationId: deleteBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del libro
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Libro eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    Author:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID único del autor
+          example: 1
+        name:
+          type: string
+          description: Nombre completo del autor
+          maxLength: 255
+          example: "Gabriel García Márquez"
+        gender:
+          type: string
+          description: Género del autor
+          enum:
+            - male
+            - female
+          example: "male"
+        country:
+          type: string
+          description: País de origen del autor
+          maxLength: 255
+          example: "Colombia"
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de creación
+          example: "2020-11-20T15:19:58.000000Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de última actualización
+          example: "2020-11-20T15:19:58.000000Z"
+
+    AuthorInput:
+      type: object
+      required:
+        - name
+        - gender
+        - country
+      properties:
+        name:
+          type: string
+          description: Nombre completo del autor
+          maxLength: 255
+          example: "Mario Vargas Llosa"
+        gender:
+          type: string
+          description: Género del autor
+          enum:
+            - male
+            - female
+          example: "male"
+        country:
+          type: string
+          description: País de origen del autor
+          maxLength: 255
+          example: "Perú"
+
+    AuthorInputPartial:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Nombre completo del autor
+          maxLength: 255
+        gender:
+          type: string
+          description: Género del autor
+          enum:
+            - male
+            - female
+        country:
+          type: string
+          description: País de origen del autor
+          maxLength: 255
+
+    Book:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID único del libro
+          example: 1
+        title:
+          type: string
+          description: Título del libro
+          maxLength: 255
+          example: "Cien años de soledad"
+        description:
+          type: string
+          description: Descripción del libro
+          maxLength: 255
+          example: "Novela del realismo mágico"
+        price:
+          type: integer
+          description: Precio del libro
+          minimum: 1
+          example: 2500
+        author_id:
+          type: integer
+          description: ID del autor al que pertenece el libro
+          minimum: 1
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de creación
+          example: "2020-11-24T16:59:11.000000Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de última actualización
+          example: "2020-11-24T16:59:11.000000Z"
+
+    BookInput:
+      type: object
+      required:
+        - title
+        - description
+        - price
+        - author_id
+      properties:
+        title:
+          type: string
+          description: Título del libro
+          maxLength: 255
+          example: "La casa de los espíritus"
+        description:
+          type: string
+          description: Descripción del libro
+          maxLength: 255
+          example: "Novela familiar"
+        price:
+          type: integer
+          description: Precio del libro
+          minimum: 1
+          example: 3000
+        author_id:
+          type: integer
+          description: ID del autor al que pertenece el libro (debe existir)
+          minimum: 1
+          example: 1
+
+    BookInputPartial:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Título del libro
+          maxLength: 255
+        description:
+          type: string
+          description: Descripción del libro
+          maxLength: 255
+        price:
+          type: integer
+          description: Precio del libro
+          minimum: 1
+        author_id:
+          type: integer
+          description: ID del autor al que pertenece el libro (debe existir)
+          minimum: 1
+
+  responses:
+    NotFoundError:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Does not exist any instance of book with the given id"
+            code: 404
+
+    ValidationError:
+      description: Error de validación
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              title:
+                - "The title field is required."
+            code: 422
+
+    ServerError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Unexpected error. Try later"
+            code: 500
+
+    Error:
+      type: object
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - type: object
+          description: Mensaje de error o objeto con errores de validación
+        code:
+          type: integer
+          description: Código HTTP de error
+          example: 404

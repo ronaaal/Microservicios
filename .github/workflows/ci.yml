@@ -1,0 +1,219 @@
+name: CI Pipeline - Microservicios
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  # Job para el servicio de Authors
+  authors-service:
+    name: Authors Service
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: sqlite, pdo_sqlite, mbstring, xml, curl
+          coverage: none
+      
+      - name: Validate composer.json
+        run: composer validate --no-check-publish
+        working-directory: ./LumenAuthorsApi
+      
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+        working-directory: ./LumenAuthorsApi
+      
+      - name: Check PHP syntax
+        run: |
+          find app -name "*.php" -exec php -l {} \;
+        working-directory: ./LumenAuthorsApi
+      
+      - name: Run PHPUnit tests
+        run: vendor/bin/phpunit
+        working-directory: ./LumenAuthorsApi
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ":memory:"
+      
+      - name: Run migrations
+        run: php artisan migrate --force
+        working-directory: ./LumenAuthorsApi
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ":memory:"
+
+  # Job para el servicio de Books
+  books-service:
+    name: Books Service
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: sqlite, pdo_sqlite, mbstring, xml, curl
+          coverage: none
+      
+      - name: Validate composer.json
+        run: composer validate --no-check-publish
+        working-directory: ./LumenBooksApi
+      
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+        working-directory: ./LumenBooksApi
+      
+      - name: Check PHP syntax
+        run: |
+          find app -name "*.php" -exec php -l {} \;
+        working-directory: ./LumenBooksApi
+      
+      - name: Run PHPUnit tests
+        run: vendor/bin/phpunit
+        working-directory: ./LumenBooksApi
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ":memory:"
+      
+      - name: Run migrations
+        run: php artisan migrate --force
+        working-directory: ./LumenBooksApi
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ":memory:"
+
+  # Job para el Gateway
+  gateway-service:
+    name: Gateway Service
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: sqlite, pdo_sqlite, mbstring, xml, curl
+          coverage: none
+      
+      - name: Validate composer.json
+        run: composer validate --no-check-publish
+        working-directory: ./LumenGatewayApi
+      
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+        working-directory: ./LumenGatewayApi
+      
+      - name: Check PHP syntax
+        run: |
+          find app -name "*.php" -exec php -l {} \;
+        working-directory: ./LumenGatewayApi
+      
+      - name: Run PHPUnit tests
+        run: vendor/bin/phpunit
+        working-directory: ./LumenGatewayApi
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ":memory:"
+          AUTHORS_SERVICE_BASE_URL: http://localhost:8001
+          BOOKS_SERVICE_BASE_URL: http://localhost:8002
+
+  # Job para pruebas de integración (opcional)
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [authors-service, books-service, gateway-service]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: sqlite, pdo_sqlite, mbstring, xml, curl
+          coverage: none
+      
+      - name: Install dependencies for all services
+        run: |
+          cd LumenAuthorsApi && composer install --prefer-dist --no-progress --no-interaction
+          cd ../LumenBooksApi && composer install --prefer-dist --no-progress --no-interaction
+          cd ../LumenGatewayApi && composer install --prefer-dist --no-progress --no-interaction
+      
+      - name: Start Authors Service
+        run: |
+          cd LumenAuthorsApi
+          php -S localhost:8001 -t public > /dev/null 2>&1 &
+          echo $! > /tmp/authors.pid
+        continue-on-error: true
+      
+      - name: Start Books Service
+        run: |
+          cd LumenBooksApi
+          php -S localhost:8002 -t public > /dev/null 2>&1 &
+          echo $! > /tmp/books.pid
+        continue-on-error: true
+      
+      - name: Start Gateway Service
+        run: |
+          cd LumenGatewayApi
+          php -S localhost:8000 -t public > /dev/null 2>&1 &
+          echo $! > /tmp/gateway.pid
+        continue-on-error: true
+      
+      - name: Wait for services to be ready
+        run: |
+          sleep 5
+          curl -f http://localhost:8001/authors || exit 1
+          curl -f http://localhost:8002/books || exit 1
+          curl -f http://localhost:8000/authors || exit 1
+        continue-on-error: true
+      
+      - name: Run integration tests
+        run: |
+          chmod +x test_gateway_simple.sh
+          bash test_gateway_simple.sh || true
+        continue-on-error: true
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          kill $(cat /tmp/authors.pid 2>/dev/null) || true
+          kill $(cat /tmp/books.pid 2>/dev/null) || true
+          kill $(cat /tmp/gateway.pid 2>/dev/null) || true
+
+  # Job para validar documentación
+  validate-docs:
+    name: Validate Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Validate OpenAPI specs
+        run: |
+          npm install -g @apidevtools/swagger-cli
+          swagger-cli validate docs/api-authors-openapi.yaml
+          swagger-cli validate docs/api-books-openapi.yaml
+          swagger-cli validate docs/api-gateway-openapi.yaml
+        continue-on-error: true

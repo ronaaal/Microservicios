@@ -1,0 +1,238 @@
+stages:
+  - validate
+  - test
+  - integration
+  - deploy
+
+variables:
+  PHP_VERSION: "8.2"
+  COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
+
+# Cache para composer
+cache:
+  paths:
+    - .composer-cache/
+    - LumenAuthorsApi/vendor/
+    - LumenBooksApi/vendor/
+    - LumenGatewayApi/vendor/
+
+# Template para servicios PHP
+.php-service-template: &php-service-template
+  image: php:${PHP_VERSION}-fpm-alpine
+  before_script:
+    - apk add --no-cache git curl sqlite
+    - docker-php-ext-install pdo_sqlite mbstring
+    - curl -sS https://getcomposer.org/installer | php
+    - mv composer.phar /usr/local/bin/composer
+    - composer --version
+
+# ============================================
+# STAGE: VALIDATE
+# ============================================
+
+validate-authors:
+  <<: *php-service-template
+  stage: validate
+  script:
+    - cd LumenAuthorsApi
+    - composer validate --no-check-publish
+    - composer install --prefer-dist --no-progress --no-interaction
+    - find app -name "*.php" -exec php -l {} \;
+  only:
+    - merge_requests
+    - main
+    - master
+    - develop
+
+validate-books:
+  <<: *php-service-template
+  stage: validate
+  script:
+    - cd LumenBooksApi
+    - composer validate --no-check-publish
+    - composer install --prefer-dist --no-progress --no-interaction
+    - find app -name "*.php" -exec php -l {} \;
+  only:
+    - merge_requests
+    - main
+    - master
+    - develop
+
+validate-gateway:
+  <<: *php-service-template
+  stage: validate
+  script:
+    - cd LumenGatewayApi
+    - composer validate --no-check-publish
+    - composer install --prefer-dist --no-progress --no-interaction
+    - find app -name "*.php" -exec php -l {} \;
+  only:
+    - merge_requests
+    - main
+    - master
+    - develop
+
+# ============================================
+# STAGE: TEST
+# ============================================
+
+test-authors:
+  <<: *php-service-template
+  stage: test
+  script:
+    - cd LumenAuthorsApi
+    - composer install --prefer-dist --no-progress --no-interaction
+    - php artisan migrate --force
+    - vendor/bin/phpunit
+  environment:
+    name: testing
+  variables:
+    APP_ENV: testing
+    DB_CONNECTION: sqlite
+    DB_DATABASE: ":memory:"
+  coverage: '/^\s*Lines:\s*\d+.\d+\%/'
+  artifacts:
+    reports:
+      junit: LumenAuthorsApi/tests/results.xml
+    paths:
+      - LumenAuthorsApi/coverage/
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+    - master
+    - develop
+
+test-books:
+  <<: *php-service-template
+  stage: test
+  script:
+    - cd LumenBooksApi
+    - composer install --prefer-dist --no-progress --no-interaction
+    - php artisan migrate --force
+    - vendor/bin/phpunit
+  environment:
+    name: testing
+  variables:
+    APP_ENV: testing
+    DB_CONNECTION: sqlite
+    DB_DATABASE: ":memory:"
+  coverage: '/^\s*Lines:\s*\d+.\d+\%/'
+  artifacts:
+    reports:
+      junit: LumenBooksApi/tests/results.xml
+    paths:
+      - LumenBooksApi/coverage/
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+    - master
+    - develop
+
+test-gateway:
+  <<: *php-service-template
+  stage: test
+  script:
+    - cd LumenGatewayApi
+    - composer install --prefer-dist --no-progress --no-interaction
+    - vendor/bin/phpunit
+  environment:
+    name: testing
+  variables:
+    APP_ENV: testing
+    DB_CONNECTION: sqlite
+    DB_DATABASE: ":memory:"
+    AUTHORS_SERVICE_BASE_URL: http://localhost:8001
+    BOOKS_SERVICE_BASE_URL: http://localhost:8002
+  coverage: '/^\s*Lines:\s*\d+.\d+\%/'
+  artifacts:
+    reports:
+      junit: LumenGatewayApi/tests/results.xml
+    paths:
+      - LumenGatewayApi/coverage/
+    expire_in: 1 week
+  only:
+    - merge_requests
+    - main
+    - master
+    - develop
+
+# ============================================
+# STAGE: INTEGRATION
+# ============================================
+
+integration-tests:
+  <<: *php-service-template
+  stage: integration
+  script:
+    # Instalar dependencias para todos los servicios
+    - cd LumenAuthorsApi && composer install --prefer-dist --no-progress --no-interaction
+    - cd ../LumenBooksApi && composer install --prefer-dist --no-progress --no-interaction
+    - cd ../LumenGatewayApi && composer install --prefer-dist --no-progress --no-interaction
+    
+    # Ejecutar migraciones
+    - cd LumenAuthorsApi && php artisan migrate --force
+    - cd ../LumenBooksApi && php artisan migrate --force
+    
+    # Iniciar servicios en background
+    - cd LumenAuthorsApi && php -S localhost:8001 -t public > /tmp/authors.log 2>&1 &
+    - cd LumenBooksApi && php -S localhost:8002 -t public > /tmp/books.log 2>&1 &
+    - cd LumenGatewayApi && php -S localhost:8000 -t public > /tmp/gateway.log 2>&1 &
+    
+    # Esperar a que los servicios estén listos
+    - sleep 10
+    
+    # Verificar que los servicios responden
+    - curl -f http://localhost:8001/authors || (cat /tmp/authors.log && exit 1)
+    - curl -f http://localhost:8002/books || (cat /tmp/books.log && exit 1)
+    - curl -f http://localhost:8000/authors || (cat /tmp/gateway.log && exit 1)
+    
+    # Ejecutar pruebas de integración
+    - chmod +x test_gateway_simple.sh
+    - bash test_gateway_simple.sh || true
+    
+    # Limpiar procesos
+    - pkill -f "php -S localhost:8001" || true
+    - pkill -f "php -S localhost:8002" || true
+    - pkill -f "php -S localhost:8000" || true
+  artifacts:
+    when: always
+    paths:
+      - /tmp/*.log
+    expire_in: 1 day
+  only:
+    - main
+    - master
+    - develop
+
+# ============================================
+# STAGE: DEPLOY (Ejemplo - personalizar según necesidad)
+# ============================================
+
+deploy-staging:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - echo "Deploy to staging environment"
+    - echo "Aquí irían los comandos de despliegue"
+  environment:
+    name: staging
+    url: https://staging.example.com
+  only:
+    - develop
+  when: manual
+
+deploy-production:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - echo "Deploy to production environment"
+    - echo "Aquí irían los comandos de despliegue"
+  environment:
+    name: production
+    url: https://api.example.com
+  only:
+    - main
+    - master
+  when: manual

@@ -1,0 +1,352 @@
+openapi: 3.0.3
+info:
+  title: Authors API
+  description: |
+    API REST para la gestión de autores en la arquitectura de microservicios.
+    Este servicio permite realizar operaciones CRUD completas sobre autores.
+  version: 1.0.0
+  contact:
+    name: Authors Service
+    url: http://localhost:8001
+servers:
+  - url: http://localhost:8001
+    description: Servidor de desarrollo (Authors Service)
+  - url: http://localhost:8000
+    description: Servidor a través del Gateway
+
+tags:
+  - name: Authors
+    description: Operaciones relacionadas con autores
+
+paths:
+  /authors:
+    get:
+      tags:
+        - Authors
+      summary: Listar todos los autores
+      description: Retorna una lista de todos los autores disponibles
+      operationId: listAuthors
+      responses:
+        '200':
+          description: Lista de autores obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Author'
+              example:
+                data:
+                  - id: 1
+                    name: "Gabriel García Márquez"
+                    gender: "male"
+                    country: "Colombia"
+                    created_at: "2020-11-20T15:19:58.000000Z"
+                    updated_at: "2020-11-20T15:19:58.000000Z"
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags:
+        - Authors
+      summary: Crear un nuevo autor
+      description: Crea un nuevo autor en el sistema
+      operationId: createAuthor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorInput'
+            examples:
+              example1:
+                summary: Ejemplo de autor masculino
+                value:
+                  name: "Mario Vargas Llosa"
+                  gender: "male"
+                  country: "Perú"
+              example2:
+                summary: Ejemplo de autor femenino
+                value:
+                  name: "Isabel Allende"
+                  gender: "female"
+                  country: "Chile"
+      responses:
+        '201':
+          description: Autor creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Author'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /authors/{id}:
+    get:
+      tags:
+        - Authors
+      summary: Obtener un autor específico
+      description: Retorna la información de un autor por su ID
+      operationId: getAuthor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del autor
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+      responses:
+        '200':
+          description: Autor encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Author'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    put:
+      tags:
+        - Authors
+      summary: Actualizar un autor (completo)
+      description: Actualiza todos los campos de un autor existente
+      operationId: updateAuthor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del autor
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorInput'
+      responses:
+        '200':
+          description: Autor actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Author'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    patch:
+      tags:
+        - Authors
+      summary: Actualizar un autor (parcial)
+      description: Actualiza parcialmente los campos de un autor existente
+      operationId: patchAuthor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del autor
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorInputPartial'
+      responses:
+        '200':
+          description: Autor actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Author'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags:
+        - Authors
+      summary: Eliminar un autor
+      description: Elimina un autor del sistema
+      operationId: deleteAuthor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del autor
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Autor eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Author'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    Author:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID único del autor
+          example: 1
+        name:
+          type: string
+          description: Nombre completo del autor
+          maxLength: 255
+          example: "Gabriel García Márquez"
+        gender:
+          type: string
+          description: Género del autor
+          enum:
+            - male
+            - female
+          example: "male"
+        country:
+          type: string
+          description: País de origen del autor
+          maxLength: 255
+          example: "Colombia"
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de creación
+          example: "2020-11-20T15:19:58.000000Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de última actualización
+          example: "2020-11-20T15:19:58.000000Z"
+
+    AuthorInput:
+      type: object
+      required:
+        - name
+        - gender
+        - country
+      properties:
+        name:
+          type: string
+          description: Nombre completo del autor
+          maxLength: 255
+          example: "Mario Vargas Llosa"
+        gender:
+          type: string
+          description: Género del autor
+          enum:
+            - male
+            - female
+          example: "male"
+        country:
+          type: string
+          description: País de origen del autor
+          maxLength: 255
+          example: "Perú"
+
+    AuthorInputPartial:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Nombre completo del autor
+          maxLength: 255
+        gender:
+          type: string
+          description: Género del autor
+          enum:
+            - male
+            - female
+        country:
+          type: string
+          description: País de origen del autor
+          maxLength: 255
+
+  responses:
+    NotFoundError:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Does not exist any instance of author with the given id"
+            code: 404
+
+    ValidationError:
+      description: Error de validación
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              name:
+                - "The name field is required."
+              gender:
+                - "The gender field is required."
+            code: 422
+
+    ServerError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Unexpected error. Try later"
+            code: 500
+
+    Error:
+      type: object
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - type: object
+          description: Mensaje de error o objeto con errores de validación
+        code:
+          type: integer
+          description: Código HTTP de error
+          example: 404

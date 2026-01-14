@@ -1,0 +1,63 @@
+version: '3.8'
+
+# Docker Compose para ejecutar tests de integración localmente
+# Similar al entorno del pipeline CI/CD
+
+services:
+  authors-service:
+    build:
+      context: ./LumenAuthorsApi
+      dockerfile: Dockerfile.test
+    container_name: authors-api-test
+    ports:
+      - "8001:8000"
+    environment:
+      - APP_ENV=testing
+      - DB_CONNECTION=sqlite
+      - DB_DATABASE=/app/database/database.sqlite
+    volumes:
+      - ./LumenAuthorsApi:/app
+    command: php -S 0.0.0.0:8000 -t public
+    networks:
+      - microservices-network
+
+  books-service:
+    build:
+      context: ./LumenBooksApi
+      dockerfile: Dockerfile.test
+    container_name: books-api-test
+    ports:
+      - "8002:8000"
+    environment:
+      - APP_ENV=testing
+      - DB_CONNECTION=sqlite
+      - DB_DATABASE=/app/database/database.sqlite
+    volumes:
+      - ./LumenBooksApi:/app
+    command: php -S 0.0.0.0:8000 -t public
+    networks:
+      - microservices-network
+
+  gateway-service:
+    build:
+      context: ./LumenGatewayApi
+      dockerfile: Dockerfile.test
+    container_name: gateway-api-test
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=testing
+      - AUTHORS_SERVICE_BASE_URL=http://authors-service:8000
+      - BOOKS_SERVICE_BASE_URL=http://books-service:8000
+    volumes:
+      - ./LumenGatewayApi:/app
+    command: php -S 0.0.0.0:8000 -t public
+    depends_on:
+      - authors-service
+      - books-service
+    networks:
+      - microservices-network
+
+networks:
+  microservices-network:
+    driver: bridge

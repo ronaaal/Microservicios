@@ -1,0 +1,374 @@
+openapi: 3.0.3
+info:
+  title: Books API
+  description: |
+    API REST para la gestión de libros en la arquitectura de microservicios.
+    Este servicio permite realizar operaciones CRUD completas sobre libros.
+    Los libros están asociados a autores mediante el campo `author_id`.
+  version: 1.0.0
+  contact:
+    name: Books Service
+    url: http://localhost:8002
+servers:
+  - url: http://localhost:8002
+    description: Servidor de desarrollo (Books Service)
+  - url: http://localhost:8000
+    description: Servidor a través del Gateway
+
+tags:
+  - name: Books
+    description: Operaciones relacionadas con libros
+
+paths:
+  /books:
+    get:
+      tags:
+        - Books
+      summary: Listar todos los libros
+      description: Retorna una lista de todos los libros disponibles
+      operationId: listBooks
+      responses:
+        '200':
+          description: Lista de libros obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Book'
+              example:
+                data:
+                  - id: 1
+                    title: "Cien años de soledad"
+                    description: "Novela del realismo mágico"
+                    price: 2500
+                    author_id: 1
+                    created_at: "2020-11-24T16:59:11.000000Z"
+                    updated_at: "2020-11-24T16:59:11.000000Z"
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags:
+        - Books
+      summary: Crear un nuevo libro
+      description: |
+        Crea un nuevo libro en el sistema.
+        **Nota**: Si se accede a través del Gateway, se valida automáticamente que el `author_id` exista.
+      operationId: createBook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookInput'
+            examples:
+              example1:
+                summary: Libro de ejemplo
+                value:
+                  title: "La casa de los espíritus"
+                  description: "Novela familiar"
+                  price: 3000
+                  author_id: 1
+      responses:
+        '201':
+          description: Libro creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          description: Autor no encontrado (solo cuando se accede a través del Gateway)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /books/{id}:
+    get:
+      tags:
+        - Books
+      summary: Obtener un libro específico
+      description: Retorna la información de un libro por su ID
+      operationId: getBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del libro
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+      responses:
+        '200':
+          description: Libro encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    put:
+      tags:
+        - Books
+      summary: Actualizar un libro (completo)
+      description: |
+        Actualiza todos los campos de un libro existente.
+        **Nota**: Si se accede a través del Gateway y se proporciona `author_id`, se valida que el autor exista.
+      operationId: updateBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del libro
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookInput'
+      responses:
+        '200':
+          description: Libro actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    patch:
+      tags:
+        - Books
+      summary: Actualizar un libro (parcial)
+      description: |
+        Actualiza parcialmente los campos de un libro existente.
+        **Nota**: Si se accede a través del Gateway y se proporciona `author_id`, se valida que el autor exista.
+      operationId: patchBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del libro
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookInputPartial'
+      responses:
+        '200':
+          description: Libro actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags:
+        - Books
+      summary: Eliminar un libro
+      description: Elimina un libro del sistema
+      operationId: deleteBook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del libro
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Libro eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Book'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    Book:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID único del libro
+          example: 1
+        title:
+          type: string
+          description: Título del libro
+          maxLength: 255
+          example: "Cien años de soledad"
+        description:
+          type: string
+          description: Descripción del libro
+          maxLength: 255
+          example: "Novela del realismo mágico"
+        price:
+          type: integer
+          description: Precio del libro
+          minimum: 1
+          example: 2500
+        author_id:
+          type: integer
+          description: ID del autor al que pertenece el libro
+          minimum: 1
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de creación
+          example: "2020-11-24T16:59:11.000000Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de última actualización
+          example: "2020-11-24T16:59:11.000000Z"
+
+    BookInput:
+      type: object
+      required:
+        - title
+        - description
+        - price
+        - author_id
+      properties:
+        title:
+          type: string
+          description: Título del libro
+          maxLength: 255
+          example: "La casa de los espíritus"
+        description:
+          type: string
+          description: Descripción del libro
+          maxLength: 255
+          example: "Novela familiar"
+        price:
+          type: integer
+          description: Precio del libro
+          minimum: 1
+          example: 3000
+        author_id:
+          type: integer
+          description: ID del autor al que pertenece el libro
+          minimum: 1
+          example: 1
+
+    BookInputPartial:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Título del libro
+          maxLength: 255
+        description:
+          type: string
+          description: Descripción del libro
+          maxLength: 255
+        price:
+          type: integer
+          description: Precio del libro
+          minimum: 1
+        author_id:
+          type: integer
+          description: ID del autor al que pertenece el libro
+          minimum: 1
+
+  responses:
+    NotFoundError:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Does not exist any instance of book with the given id"
+            code: 404
+
+    ValidationError:
+      description: Error de validación
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              title:
+                - "The title field is required."
+              description:
+                - "The description field is required."
+              price:
+                - "The price field is required."
+              author_id:
+                - "The author_id field is required."
+            code: 422
+
+    ServerError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Unexpected error. Try later"
+            code: 500
+
+    Error:
+      type: object
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - type: object
+          description: Mensaje de error o objeto con errores de validación
+        code:
+          type: integer
+          description: Código HTTP de error
+          example: 404
