@@ -30,3 +30,6 @@
     $router->put('/books/{book}', 'BookController@update');
     $router->patch('/books/{book}', 'BookController@update');
     $router->delete('/books/{book}', 'BookController@destroy');
+
+    $router->get('/reviews', 'ReviewController@index');
+    $router->post('/reviews', 'ReviewController@store');
